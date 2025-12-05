@@ -102,6 +102,7 @@
 #' @export
 
 
+
 batch_drc_analysis <- function(batch_results,
                                normalize = FALSE,
                                enforce_bottom_threshold = FALSE,
@@ -406,11 +407,27 @@ batch_drc_analysis <- function(batch_results,
       if (is.null(plate_res_obj$drc_result)) next
       if (is.null(plate_res_obj$drc_result$summary_table)) next
 
+      # Summary sheet
       sheet_sum <- get_safe_sheet_name(plate_name, "_sum", used_sheet_names)
       used_sheet_names <- c(used_sheet_names, sheet_sum)
-
       openxlsx::addWorksheet(wb_details, sheet_sum)
       openxlsx::writeData(wb_details, sheet_sum, plate_res_obj$drc_result$summary_table)
+
+      # Dados raw se disponíveis
+      if (!is.null(plate_res_obj$data_tables$raw_data)) {
+        sheet_raw <- get_safe_sheet_name(plate_name, "_raw", used_sheet_names)
+        used_sheet_names <- c(used_sheet_names, sheet_raw)
+        openxlsx::addWorksheet(wb_details, sheet_raw)
+        openxlsx::writeData(wb_details, sheet_raw, plate_res_obj$data_tables$raw_data)
+      }
+
+      # Dados normalizados se disponíveis
+      if (!is.null(plate_res_obj$data_tables$normalized_data)) {
+        sheet_norm <- get_safe_sheet_name(plate_name, "_norm", used_sheet_names)
+        used_sheet_names <- c(used_sheet_names, sheet_norm)
+        openxlsx::addWorksheet(wb_details, sheet_norm)
+        openxlsx::writeData(wb_details, sheet_norm, plate_res_obj$data_tables$normalized_data)
+      }
     }
 
     openxlsx::saveWorkbook(wb_details, path_details, overwrite = TRUE)
@@ -419,6 +436,7 @@ batch_drc_analysis <- function(batch_results,
       message("Reports generated successfully:")
       message("  1. ", path_pharma)
       message("  2. ", path_details)
+      message("   (Includes raw and normalized data for each plate)")
     }
   }
 
@@ -467,13 +485,6 @@ batch_drc_analysis <- function(batch_results,
     return(NULL)
   }
 
-  # Função simples de preparação (sem criação de réplicas artificiais)
-  prepare_drc_data <- function(data_table) {
-    if (is.null(data_table)) return(NULL)
-    # Retorna os dados sem modificação
-    return(data_table)
-  }
-
   # ============================================================================
   # 2. MAIN EXECUTION
   # ============================================================================
@@ -483,6 +494,7 @@ batch_drc_analysis <- function(batch_results,
     message("STARTING BATCH DOSE-RESPONSE ANALYSIS")
     message("==========================================================")
     message("Main Output: ", output_dir)
+    message("Normalization for fitting: ", ifelse(normalize, "YES (0-100%)", "NO (Raw data)"))
   }
 
   drc_results <- list()
@@ -516,20 +528,17 @@ batch_drc_analysis <- function(batch_results,
         }
       }
 
-      # 2. Preparação (Sem duplicatas artificiais)
-      drc_data <- prepare_drc_data(data_table)
-
-      # 3. Caminho do arquivo individual
+      # 2. Caminho do arquivo individual
       output_file <- NULL
       if (generate_reports) {
         clean_name <- sanitize_filename(plate_name)
         output_file <- file.path(detailed_dir, paste0("drc_", clean_name, ".xlsx"))
       }
 
-      # 4. Ajuste da Curva com tratamento de erro interno
+      # 3. Ajuste da Curva - fit_drc_3pl já gera ambos os datasets
       plate_drc_result <- tryCatch({
         fit_drc_3pl(
-          data = drc_data,
+          data = data_table,
           output_file = output_file,
           normalize = normalize,
           verbose = FALSE,
@@ -541,18 +550,19 @@ batch_drc_analysis <- function(batch_results,
         # Retorna estrutura padrão em caso de erro interno
         return(list(
           successful_fits = 0,
-          n_compounds = ncol(drc_data) - 1,
+          n_compounds = ncol(data_table) - 1,
           summary_table = data.frame(),
           detailed_results = list(),
           error = e$message
         ))
       })
 
-      # 5. Metadados
+      # 4. Metadados
       d_file <- batch_results[[plate_name]]$data_file %||% "unknown"
       i_sheet <- batch_results[[plate_name]]$info_sheet %||% "unknown"
       s_num <- batch_results[[plate_name]]$sheet_number %||% "unknown"
 
+      # 5. Extrair e armazenar os dados raw e normalizados da fit_drc_3pl
       drc_results[[plate_name]] <- list(
         plate_info = list(
           original_name = plate_name,
@@ -561,6 +571,12 @@ batch_drc_analysis <- function(batch_results,
           sheet_number = s_num
         ),
         drc_result = plate_drc_result,
+        data_tables = list(
+          raw_data = plate_drc_result$original_data %||% data_table,
+          normalized_data = plate_drc_result$normalized_data,
+          data_used_for_fitting = if (normalize) "normalized" else "raw",
+          fitting_normalization = plate_drc_result$used_normalized_data %||% normalize
+        ),
         processing_timestamp = Sys.time(),
         processing_time = as.numeric(difftime(Sys.time(), proc_start, units = "secs"))
       )
@@ -570,6 +586,13 @@ batch_drc_analysis <- function(batch_results,
         tot <- plate_drc_result$n_compounds %||% 0
         proc_time <- difftime(Sys.time(), proc_start, units = "secs")
         message(sprintf("  -> Success: %d/%d compounds (%.1f sec)", succ, tot, proc_time))
+
+        # Informações sobre dados
+        if (!is.null(plate_drc_result$original_data) && !is.null(plate_drc_result$normalized_data)) {
+          message(sprintf("  -> Data stored: Raw (%d rows), Normalized (%d rows)",
+                          nrow(plate_drc_result$original_data),
+                          nrow(plate_drc_result$normalized_data)))
+        }
 
         if (!is.null(plate_drc_result$error)) {
           message(sprintf("  -> DRC warning: %s", plate_drc_result$error))
@@ -614,6 +637,15 @@ batch_drc_analysis <- function(batch_results,
     message(sprintf("Successful Plates:  %d", length(drc_results)))
     message(sprintf("Failed Plates:      %d", length(failed_plates)))
 
+    # Resumo dos dados
+    if (length(drc_results) > 0) {
+      message("\nData Summary:")
+      message(sprintf("  • Fitting performed on: %s data",
+                      ifelse(normalize, "NORMALIZED (0-100%)", "RAW")))
+      message(sprintf("  • Both data versions preserved in results"))
+      message(sprintf("  • Check data_tables element for complete datasets"))
+    }
+
     if (length(failed_plates) > 0) {
       message("\nFailed Plates List:")
       if (length(failed_plates) <= 10) {
@@ -627,6 +659,10 @@ batch_drc_analysis <- function(batch_results,
       message("\nOutput Files:")
       message(sprintf("  • Pharmacology Summary: %s", file.path(output_dir, "Pharmacology_Summary.xlsx")))
       message(sprintf("  • Detailed Reports:      %s", detailed_dir))
+      message("  • In Detailed Reports, each plate has:")
+      message("      - Summary table (sheetname_plate_sum)")
+      message("      - Raw data table (sheetname_plate_raw)")
+      message("      - Normalized data table (sheetname_plate_norm)")
     }
     message(paste(rep("=", 50), collapse = ""))
   }
@@ -644,6 +680,11 @@ batch_drc_analysis <- function(batch_results,
       output_directory = output_dir,
       detailed_reports_dir = if (generate_reports) detailed_dir else NULL,
       timestamp = Sys.time(),
+      normalization_for_fitting = normalize,
+      data_availability = list(
+        raw_data_available = length(drc_results) > 0 && !all(sapply(drc_results, function(x) is.null(x$data_tables$raw_data))),
+        normalized_data_available = length(drc_results) > 0 && !all(sapply(drc_results, function(x) is.null(x$data_tables$normalized_data)))
+      ),
       processing_summary = if (length(drc_results) > 0) {
         # Calcula tempo médio de processamento
         times <- sapply(drc_results, function(x) x$processing_time %||% 0)
