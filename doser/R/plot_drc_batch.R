@@ -138,6 +138,8 @@
 #' @importFrom ggsci pal_locuszoom pal_igv pal_uchicago pal_startrek pal_tron
 #' @importFrom ggsci pal_futurama pal_rickandmorty pal_simpsons pal_gsea
 #' @export
+
+
 plot_drc_batch <- function(batch_drc_results,
                            construct_compound = NULL,
                            position = NULL,
@@ -312,9 +314,17 @@ plot_drc_batch <- function(batch_drc_results,
   # ============================================================================
   raw_data_list <- list(); curve_data_list <- list(); counter <- 0
 
+  normalized_info <- list()
+
   for (plate_name in names(batch_drc_results)) {
-    plate_res_list <- get_detailed_results(batch_drc_results[[plate_name]])
+    plate_obj <- batch_drc_results[[plate_name]]
+    plate_res_list <- get_detailed_results(plate_obj)
     if (is.null(plate_res_list)) next
+
+    plate_normalized <- NULL
+    if (!is.null(plate_obj$drc_result) && !is.null(plate_obj$drc_result$normalized)) {
+      plate_normalized <- plate_obj$drc_result$normalized
+    }
 
     for (i in seq_along(plate_res_list)) {
       res <- plate_res_list[[i]]
@@ -339,6 +349,14 @@ plot_drc_batch <- function(batch_drc_results,
 
       if (nrow(valid_data) >= 2) {
         raw_data_list[[counter]] <- valid_data
+
+        normalized_info[[unique_id]] <- if (!is.null(plate_normalized)) {
+          plate_normalized
+        } else if (!is.null(res$normalized)) {
+          res$normalized
+        } else {
+          FALSE
+        }
 
         model_obj <- res$model
         if (!is.null(model_obj)) {
@@ -411,6 +429,14 @@ plot_drc_batch <- function(batch_drc_results,
   plot_raw <- dplyr::filter(df_raw_master, unique_id %in% selected_ids)
   plot_curve <- dplyr::filter(df_curve_master, unique_id %in% selected_ids)
 
+  selected_norm_flags <- sapply(selected_ids, function(id) {
+    if (!is.null(normalized_info[[id]])) {
+      normalized_info[[id]]
+    } else {
+      FALSE
+    }
+  }, USE.NAMES = FALSE)
+
   # ============================================================================
   # 5. DATA AGGREGATION & LEGEND LOGIC
   # ============================================================================
@@ -475,7 +501,15 @@ plot_drc_batch <- function(batch_drc_results,
     names(final_shapes) <- levels(plot_curve$legend_group)
   }
 
-  yt <- if(is.null(y_axis_title)) "Response" else y_axis_title
+  yt <- if (!is.null(y_axis_title)) {
+    y_axis_title
+  } else {
+    if (any(selected_norm_flags, na.rm = TRUE)) {
+      "Normalized BRET ratio [%]"
+    } else {
+      "BRET ratio"
+    }
+  }
 
   if(!is.null(legend_title)) {
     lt <- legend_title
