@@ -103,6 +103,7 @@
 
 
 
+
 batch_drc_analysis <- function(batch_results,
                                normalize = FALSE,
                                enforce_bottom_threshold = FALSE,
@@ -118,12 +119,12 @@ batch_drc_analysis <- function(batch_results,
   if (!requireNamespace("dplyr", quietly = TRUE)) stop("Package 'dplyr' is required.")
   if (generate_reports && !requireNamespace("openxlsx", quietly = TRUE)) stop("Package 'openxlsx' is required.")
 
-  # Helper: Operador %||% para fallback seguro
+  # Helper: Safe fallback operator
   `%||%` <- function(a, b) {
     if (is.null(a) || length(a) == 0 || all(is.na(a))) b else a
   }
 
-  # Helper: Sanitização de nome de arquivo
+  # Helper: Filename sanitization
   sanitize_filename <- function(name, max_len = 50) {
     clean <- gsub("[^A-Za-z0-9_.-]", "_", name)
     clean <- gsub("_+", "_", clean)
@@ -131,28 +132,28 @@ batch_drc_analysis <- function(batch_results,
     return(clean)
   }
 
-  # Validação de Input
+  # Input validation
   if (!is.list(batch_results) || length(batch_results) == 0) {
     stop("batch_results must be a non-empty list.")
   }
 
-  # Definição de Diretórios
+  # Directory setup
   if (is.null(output_dir)) output_dir <- getwd()
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
-  # Cria subpasta APENAS se gerar relatórios
+  # Create subfolder only if generating reports
   detailed_dir <- file.path(output_dir, "Detailed_Reports")
   if (generate_reports && !dir.exists(detailed_dir)) {
     dir.create(detailed_dir, recursive = TRUE)
   }
 
   # ============================================================================
-  # 1. FUNÇÕES INTERNAS
+  # 1. INTERNAL FUNCTIONS
   # ============================================================================
 
   generate_drc_batch_report <- function(drc_results, main_dir, sub_dir, verbose = TRUE) {
 
-    # Helper para nome de abas seguro
+    # Helper for safe Excel sheet names
     get_safe_sheet_name <- function(base_name, suffix = "", existing_names = c()) {
       max_len <- 31 - nchar(suffix) - 3
       clean_base <- gsub("[^A-Za-z0-9_]", "_", base_name)
@@ -173,7 +174,7 @@ batch_drc_analysis <- function(batch_results,
     wb_pharma <- openxlsx::createWorkbook()
     wb_details <- openxlsx::createWorkbook()
 
-    # Listas acumuladoras
+    # Accumulator lists
     summary_list <- list()
     all_results_list <- list()
     quality_list <- list()
@@ -181,11 +182,11 @@ batch_drc_analysis <- function(batch_results,
 
     used_sheet_names <- c("Summary", "All_Results", "Curve_Quality")
 
-    # --- LOOP DE GERAÇÃO DO REPORT ---
+    # --- REPORT GENERATION LOOP ---
     for (plate_name in names(drc_results)) {
       plate_res_obj <- drc_results[[plate_name]]
 
-      # Validação de Estrutura
+      # Structure validation
       if (is.null(plate_res_obj$drc_result) || is.null(plate_res_obj$drc_result$summary_table)) next
       drc_summary <- plate_res_obj$drc_result$summary_table
       if (nrow(drc_summary) == 0) next
@@ -205,23 +206,23 @@ batch_drc_analysis <- function(batch_results,
         stringsAsFactors = FALSE
       )
 
-      # 2. All Results (Sem pipe)
+      # 2. All Results
       drc_summary_copy <- drc_summary
       drc_summary_copy$Plate <- plate_name
 
-      # Reordena colunas usando subsetting básico
+      # Reorder columns
       cols_order <- c("Plate", setdiff(names(drc_summary_copy), "Plate"))
       drc_summary_copy <- drc_summary_copy[, cols_order, drop = FALSE]
 
       all_results_list[[length(all_results_list) + 1]] <- drc_summary_copy
 
-      # 3. Quality List (Evita colunas duplicadas explicitamente)
+      # 3. Quality List
       desired_cols <- c("Plate", "Compound", "Curve_Quality", "R_squared", "Max_Slope",
                         "Ideal_Hill_Slope", "Bottom", "Top", "LogIC50", "IC50")
       existing_cols <- intersect(desired_cols, names(drc_summary_copy))
       quality_list[[length(quality_list) + 1]] <- drc_summary_copy[, existing_cols, drop = FALSE]
 
-      # 4. PHARMACOLOGY SUMMARY (Robusto)
+      # 4. PHARMACOLOGY SUMMARY
       res_root <- plate_res_obj$drc_result
       detailed_res <- res_root$detailed_results %||% res_root$curve_results %||% res_root$fits
       if (!is.list(detailed_res)) detailed_res <- list()
@@ -230,10 +231,10 @@ batch_drc_analysis <- function(batch_results,
 
         for (i in seq_along(detailed_res)) {
           res <- detailed_res[[i]]
-          # Verifica se fit existiu
+          # Check if fit existed
           if (is.null(res$success) || !isTRUE(res$success)) next
 
-          # Parsing Name
+          # Name parsing
           clean_name <- gsub("\\.\\d+$", "", res$compound %||% "Unknown")
           parts <- strsplit(clean_name, " \\| |:")[[1]]
           parts <- trimws(parts)
@@ -247,7 +248,7 @@ batch_drc_analysis <- function(batch_results,
           }
           pic50 <- if (!is.na(log_ic50)) -log_ic50 else NA_real_
 
-          # --- CI e DELTA POSITIVO ---
+          # --- CI and positive delta ---
           ci_log_lower_bound <- NA_real_
           ci_log_upper_bound <- NA_real_
 
@@ -263,21 +264,21 @@ batch_drc_analysis <- function(batch_results,
             abs_pic50_upper <- -ci_log_lower_bound
             abs_pic50_lower <- -ci_log_upper_bound
 
-            # Deltas Positivos (Magnitude)
+            # Positive deltas (magnitude)
             pic50_diff_upper <- abs_pic50_upper - pic50
             pic50_diff_lower <- pic50 - abs_pic50_lower
           }
 
-          # --- NORMALIZED SPAN (Fórmula Solicitada) ---
+          # --- NORMALIZED SPAN ---
           norm_span <- NA_real_
           if (!is.null(res$data) && nrow(res$data) >= 2) {
-            # Ordenação segura
+            # Safe ordering
             d_ord <- res$data[order(res$data$log_inhibitor), ]
 
             min_c <- d_ord$log_inhibitor[1]
             max_c <- d_ord$log_inhibitor[nrow(d_ord)]
 
-            # Identifica índices para média
+            # Identify indices for averaging
             idx_min <- which(d_ord$log_inhibitor == min_c)
             idx_max <- which(d_ord$log_inhibitor == max_c)
 
@@ -287,16 +288,12 @@ batch_drc_analysis <- function(batch_results,
 
               denom <- c100 - c0
 
-              # span_val geralmente é parâmetro 5 (Span) vindo do fit_drc_3pl
+              # span_val is usually parameter 5 (Span) from fit_drc_3pl
               span_val <- NA_real_
               if (length(res$parameters$Value) >= 5) span_val <- res$parameters$Value[5]
 
-              # FÓRMULA: 1 - (span / (c100 - c0))
-              # OBSERVAÇÃO: Com esta fórmula:
-              # - Se span = denom (cobre toda janela) → norm_span = 0
-              # - Se span = 0.5*denom (cobre metade) → norm_span = 0.5
-              # - Se span = 0 (não cobre) → norm_span = 1
-              # Portanto, norm_span < 0.5 significa que a curva cobre MAIS da metade da janela
+              # FORMULA: 1 - (span / (c100 - c0))
+              # norm_span < 0.5 means curve covers MORE than 50% of dynamic window
               if (!is.na(denom) && abs(denom) > 1e-6 && !is.na(span_val)) {
                 norm_span <- 1 - (span_val / denom)
               }
@@ -308,22 +305,33 @@ batch_drc_analysis <- function(batch_results,
           # --- FLAGS ---
           flag_collector <- character()
 
-          # 1. CI indefinido
+          # 1. Undefined CI
           if (is.na(pic50_diff_lower) || is.na(pic50_diff_upper)) {
             flag_collector <- c(flag_collector, "Undefined CI")
           } else {
-            # 2. CI muito amplo (> 0.4642 log units ≈ 1.5-fold em escala linear)
+            # 2. CI too wide (> 0.4642 log units ≈ 1.5-fold in linear scale)
             if (pic50_diff_lower > 0.4642) flag_collector <- c(flag_collector, "Unstable pIC50 (Lower CI > 0.4642)")
             if (pic50_diff_upper > 0.4642) flag_collector <- c(flag_collector, "Unstable pIC50 (Upper CI > 0.4642)")
           }
 
-          # 3. Hill slope fora do ideal
-          if (!is.na(ideal_hill) && (ideal_hill < 0.5 || ideal_hill > 1.5)) {
-            flag_collector <- c(flag_collector, "Hill Slope < 0.5 or > 1.5")
+          # 3. Hill slope out of ideal range - BASED ON CURVE TYPE
+          curve_type <- res$curve_type %||% "unknown"
+
+          if (!is.na(ideal_hill)) {
+            if (curve_type == "activation") {
+              # For activation: positive hill slope expected, ideal around 1
+              if (ideal_hill < 0.5 || ideal_hill > 1.5) {
+                flag_collector <- c(flag_collector, "Hill Slope (expected 0.5-1.5)")
+              }
+            } else {
+              # For inhibition or flat: negative hill slope expected, ideal around -1
+              if (ideal_hill > -0.5 || ideal_hill < -1.5) {
+                flag_collector <- c(flag_collector, "Hill Slope (expected -1.5 to -0.5)")
+              }
+            }
           }
 
-          # 4. Normalized Span < 0.5 (CRITÉRIO SOLICITADO)
-          # Com a fórmula acima, isso significa que a curva cobre MAIS que 50% da janela dinâmica
+          # 4. Normalized Span < 0.5 (REQUESTED CRITERION)
           if (!is.na(norm_span) && norm_span < 0.5) {
             flag_collector <- c(flag_collector, "Normalized Span < 0.5")
           }
@@ -350,7 +358,7 @@ batch_drc_analysis <- function(batch_results,
       }
     }
 
-    # Consolidação (com verificação de listas vazias)
+    # Consolidation (with empty list checks)
     if (length(summary_list) == 0) {
       summary_data <- data.frame()
     } else {
@@ -375,9 +383,9 @@ batch_drc_analysis <- function(batch_results,
       pharm_combined <- dplyr::bind_rows(pharm_list)
     }
 
-    # --- ESCRITA EXCEL ---
+    # --- EXCEL WRITING ---
 
-    # Arquivo 1: Pharmacology Summary
+    # File 1: Pharmacology Summary
     openxlsx::addWorksheet(wb_pharma, "Pharmacology_Summary")
     if (nrow(pharm_combined) > 0) {
       openxlsx::writeData(wb_pharma, "Pharmacology_Summary", pharm_combined)
@@ -387,7 +395,7 @@ batch_drc_analysis <- function(batch_results,
     }
     openxlsx::saveWorkbook(wb_pharma, path_pharma, overwrite = TRUE)
 
-    # Arquivo 2: Detailed Report
+    # File 2: Detailed Report
     openxlsx::addWorksheet(wb_details, "Summary")
     openxlsx::writeData(wb_details, "Summary", summary_data)
 
@@ -401,7 +409,7 @@ batch_drc_analysis <- function(batch_results,
       openxlsx::writeData(wb_details, "Curve_Quality", quality_combined)
     }
 
-    # Worksheets individuais para cada placa
+    # Individual worksheets for each plate
     for (plate_name in names(drc_results)) {
       plate_res_obj <- drc_results[[plate_name]]
       if (is.null(plate_res_obj$drc_result)) next
@@ -413,7 +421,7 @@ batch_drc_analysis <- function(batch_results,
       openxlsx::addWorksheet(wb_details, sheet_sum)
       openxlsx::writeData(wb_details, sheet_sum, plate_res_obj$drc_result$summary_table)
 
-      # Dados raw se disponíveis
+      # Raw data if available
       if (!is.null(plate_res_obj$data_tables$raw_data)) {
         sheet_raw <- get_safe_sheet_name(plate_name, "_raw", used_sheet_names)
         used_sheet_names <- c(used_sheet_names, sheet_raw)
@@ -421,7 +429,7 @@ batch_drc_analysis <- function(batch_results,
         openxlsx::writeData(wb_details, sheet_raw, plate_res_obj$data_tables$raw_data)
       }
 
-      # Dados normalizados se disponíveis
+      # Normalized data if available
       if (!is.null(plate_res_obj$data_tables$normalized_data)) {
         sheet_norm <- get_safe_sheet_name(plate_name, "_norm", used_sheet_names)
         used_sheet_names <- c(used_sheet_names, sheet_norm)
@@ -440,12 +448,12 @@ batch_drc_analysis <- function(batch_results,
     }
   }
 
-  # Função robusta para extração de dados
+  # Robust data extraction function
   extract_data_for_drc <- function(plate_result) {
-    # Busca hierárquica por dados válidos
+    # Hierarchical search for valid data
     search_locations <- list()
 
-    # Nível 1: Via $result (estrutura mais comum)
+    # Level 1: Via $result (most common structure)
     if (!is.null(plate_result$result)) {
       search_locations <- c(search_locations, list(
         plate_result$result$modified_ratio_table,
@@ -456,7 +464,7 @@ batch_drc_analysis <- function(batch_results,
       ))
     }
 
-    # Nível 2: Diretamente nos atributos
+    # Level 2: Directly in attributes
     search_locations <- c(search_locations, list(
       plate_result$modified_ratio_table,
       plate_result$processed_data,
@@ -465,15 +473,15 @@ batch_drc_analysis <- function(batch_results,
       plate_result$data
     ))
 
-    # Nível 3: A própria plate_result se for data.frame
+    # Level 3: The plate_result itself if it's a data.frame
     if (is.data.frame(plate_result) && nrow(plate_result) > 0) {
       search_locations <- c(search_locations, list(plate_result))
     }
 
-    # Busca sequencial
+    # Sequential search
     for (dt in search_locations) {
       if (!is.null(dt) && is.data.frame(dt) && nrow(dt) > 0 && ncol(dt) >= 3) {
-        # Verifica se primeira coluna parece ser numérica (concentração)
+        # Check if first column appears to be numeric (concentration)
         first_col <- dt[[1]]
         if (is.numeric(first_col) ||
             (is.character(first_col) &&
@@ -501,7 +509,7 @@ batch_drc_analysis <- function(batch_results,
   failed_plates <- character()
   total_plates <- length(batch_results)
 
-  # Loop principal com contador
+  # Main loop with counter
   for (i in seq_along(batch_results)) {
     plate_name <- names(batch_results)[i]
     if (verbose) {
@@ -511,31 +519,31 @@ batch_drc_analysis <- function(batch_results,
     tryCatch({
       proc_start <- Sys.time()
 
-      # 1. Extração de dados
+      # 1. Data extraction
       data_table <- extract_data_for_drc(batch_results[[plate_name]])
       if (is.null(data_table)) {
         stop("No valid data table found in plate result.")
       }
 
-      # Validação básica do formato
+      # Basic format validation
       if (verbose) {
         message(sprintf("  Data shape: %d rows × %d columns",
                         nrow(data_table), ncol(data_table)))
 
-        # Verifica se primeira coluna é numérica
+        # Check if first column is numeric
         if (!is.numeric(data_table[[1]])) {
           message("  Note: First column may not be numeric (check concentration values)")
         }
       }
 
-      # 2. Caminho do arquivo individual
+      # 2. Individual file path
       output_file <- NULL
       if (generate_reports) {
         clean_name <- sanitize_filename(plate_name)
         output_file <- file.path(detailed_dir, paste0("drc_", clean_name, ".xlsx"))
       }
 
-      # 3. Ajuste da Curva - fit_drc_3pl já gera ambos os datasets
+      # 3. Curve fitting - fit_drc_3pl already generates both datasets
       plate_drc_result <- tryCatch({
         fit_drc_3pl(
           data = data_table,
@@ -547,7 +555,7 @@ batch_drc_analysis <- function(batch_results,
           r_sqr_threshold = r_sqr_threshold
         )
       }, error = function(e) {
-        # Retorna estrutura padrão em caso de erro interno
+        # Return standard structure in case of internal error
         return(list(
           successful_fits = 0,
           n_compounds = ncol(data_table) - 1,
@@ -557,12 +565,12 @@ batch_drc_analysis <- function(batch_results,
         ))
       })
 
-      # 4. Metadados
+      # 4. Metadata
       d_file <- batch_results[[plate_name]]$data_file %||% "unknown"
       i_sheet <- batch_results[[plate_name]]$info_sheet %||% "unknown"
       s_num <- batch_results[[plate_name]]$sheet_number %||% "unknown"
 
-      # 5. Extrair e armazenar os dados raw e normalizados da fit_drc_3pl
+      # 5. Extract and store raw and normalized data from fit_drc_3pl
       drc_results[[plate_name]] <- list(
         plate_info = list(
           original_name = plate_name,
@@ -587,7 +595,7 @@ batch_drc_analysis <- function(batch_results,
         proc_time <- difftime(Sys.time(), proc_start, units = "secs")
         message(sprintf("  -> Success: %d/%d compounds (%.1f sec)", succ, tot, proc_time))
 
-        # Informações sobre dados
+        # Data information
         if (!is.null(plate_drc_result$original_data) && !is.null(plate_drc_result$normalized_data)) {
           message(sprintf("  -> Data stored: Raw (%d rows), Normalized (%d rows)",
                           nrow(plate_drc_result$original_data),
@@ -637,7 +645,7 @@ batch_drc_analysis <- function(batch_results,
     message(sprintf("Successful Plates:  %d", length(drc_results)))
     message(sprintf("Failed Plates:      %d", length(failed_plates)))
 
-    # Resumo dos dados
+    # Data summary
     if (length(drc_results) > 0) {
       message("\nData Summary:")
       message(sprintf("  • Fitting performed on: %s data",
@@ -686,7 +694,7 @@ batch_drc_analysis <- function(batch_results,
         normalized_data_available = length(drc_results) > 0 && !all(sapply(drc_results, function(x) is.null(x$data_tables$normalized_data)))
       ),
       processing_summary = if (length(drc_results) > 0) {
-        # Calcula tempo médio de processamento
+        # Calculate average processing time
         times <- sapply(drc_results, function(x) x$processing_time %||% 0)
         list(
           avg_time = mean(times),
@@ -704,3 +712,4 @@ batch_drc_analysis <- function(batch_results,
     report_info = report_info
   )))
 }
+
