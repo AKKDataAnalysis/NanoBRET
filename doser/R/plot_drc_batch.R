@@ -212,7 +212,11 @@ plot_drc_batch <- function(batch_drc_results,
                            axis_text_color = "black",
                            axis_text_size = 12,
                            axis_title_color = "black",
-                           axis_title_size = 14) {
+                           axis_title_size = 14,
+                           title_size = 16,
+                           legend_title_size = 12,
+                           legend_text_size = 10
+) {
 
   # ============================================================================
   # 1. SETUP & NAMESPACE CHECKS
@@ -636,12 +640,12 @@ plot_drc_batch <- function(batch_drc_results,
     ggplot2::labs(title = final_title, x = expression(paste("Log"[10], " Concentration [M]")), y = yt) +
     base_theme +
     ggplot2::theme(
-      plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 16),
+      plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = title_size),
       axis.text = ggplot2::element_text(color = axis_text_color, size = axis_text_size),
       axis.title = ggplot2::element_text(color = axis_title_color, size = axis_title_size, face = "bold"),
       legend.position = if(show_legend) legend_position else "none",
-      legend.title = ggplot2::element_text(face="bold"),
-      legend.text = ggplot2::element_text(size = 10),
+      legend.title = ggplot2::element_text(face = "bold", size = legend_title_size),
+      legend.text = ggplot2::element_text(size = legend_text_size),
       panel.border = ggplot2::element_blank(),
       axis.line = ggplot2::element_line(color = "black", linewidth = 0.5),
       strip.background = ggplot2::element_rect(fill = "#f0f0f0", color = NA),

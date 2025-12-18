@@ -32,7 +32,10 @@ plot_drc_batch(
   axis_text_color = "black",
   axis_text_size = 12,
   axis_title_color = "black",
-  axis_title_size = 14
+  axis_title_size = 14,
+  title_size = 16,
+  legend_title_size = 12,
+  legend_text_size = 10
 )
 }
 \arguments{
