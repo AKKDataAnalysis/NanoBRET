@@ -11,7 +11,7 @@ plot_dose_response(
   point_color = "black",
   line_color = "black",
   ic50_line_color = "gray",
-  point_size = 1,
+  point_size = 2,
   line_width = 2,
   error_bar_width = 0.01,
   show_ic50_line = TRUE,
@@ -25,6 +25,7 @@ plot_dose_response(
   axis_text_size = 18,
   x_axis_title = NULL,
   y_axis_title = NULL,
+  plot_title = TRUE,
   enforce_bottom_threshold = NULL,
   bottom_threshold = 60,
   verbose = FALSE
@@ -44,7 +45,7 @@ dose-response analysis results.}
 
 \item{ic50_line_color}{Color for IC50 vertical line (default: "gray").}
 
-\item{point_size}{Size multiplier for data points (default: 1).}
+\item{point_size}{Size multiplier for data points (default: 2).}
 
 \item{line_width}{Line width for fitted curve (default: 2).}
 
@@ -73,6 +74,10 @@ dose-response analysis results.}
 \item{x_axis_title}{Custom x-axis title. If NULL, uses default expression.}
 
 \item{y_axis_title}{Custom y-axis title. If NULL, uses default based on normalization.}
+
+\item{plot_title}{Controls the plot title. \code{FALSE} (default) = no title;
+\code{TRUE} = automatic title (construct + compound name);
+character = custom title text.}
 
 \item{enforce_bottom_threshold}{Logical indicating whether bottom threshold enforcement
 was used in analysis (default: NULL, auto-detected from results).}
