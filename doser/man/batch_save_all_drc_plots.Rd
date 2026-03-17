@@ -5,7 +5,7 @@
 \title{Save all dose-response curves from batch analysis}
 \usage{
 batch_save_all_drc_plots(
-  batch_results,
+  batch_drc_results,
   output_dir = "DRC_Plots",
   organize_by = "plate",
   compounds_to_plot = NULL,
@@ -23,7 +23,7 @@ batch_save_all_drc_plots(
 )
 }
 \arguments{
-\item{batch_results}{Output from \code{\link{batch_drc_analysis}}. Can be either
+\item{batch_drc_results}{Output from \code{\link{batch_drc_analysis}}. Can be either
 the complete wrapper object or the extracted \code{drc_results} component.}
 
 \item{output_dir}{Character string specifying the main output directory where
@@ -126,13 +126,13 @@ the error is captured and the function continues processing remaining compounds.
 \dontrun{
 # Basic usage - saves all plots organized by plate
 batch_save_all_drc_plots(
-  batch_results = my_results,
+  batch_drc_results = my_results,
   output_dir = "All_Plots"
 )
 
 # Save only specific compounds, organized by compound name
 batch_save_all_drc_plots(
-  batch_results = my_results,
+  batch_drc_results = my_results,
   compounds_to_plot = c("MDCV001", "GZD824", "MLI-2"),
   organize_by = "compound",
   output_dir = "Selected_Compounds"
@@ -140,7 +140,7 @@ batch_save_all_drc_plots(
 
 # Customize plot appearance
 batch_save_all_drc_plots(
-  batch_results = my_results,
+  batch_drc_results = my_results,
   output_dir = "Custom_Plots",
   point_color = "blue",
   point_size = 3,
@@ -153,7 +153,7 @@ batch_save_all_drc_plots(
 
 # Save specific plates with custom title
 batch_save_all_drc_plots(
-  batch_results = my_results,
+  batch_drc_results = my_results,
   plates_to_plot = c("plate_01", "plate_03"),
   output_dir = "Selected_Plates",
   plot_title = "Dose-Response Curve"
@@ -161,7 +161,7 @@ batch_save_all_drc_plots(
 
 # Process only compounds from a specific construct
 batch_save_all_drc_plots(
-  batch_results = my_results,
+  batch_drc_results = my_results,
   compounds_to_plot = c("MDCV001", "MDCV002", "MDCV003"),
   output_dir = "LRRK2_Compounds"
 )

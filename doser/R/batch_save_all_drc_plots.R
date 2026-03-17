@@ -5,7 +5,7 @@
 #' result object. Plots are saved in the specified format and can be organized
 #' by plate, by compound, or in a flat structure.
 #'
-#' @param batch_results Output from \code{\link{batch_drc_analysis}}. Can be either
+#' @param batch_drc_results Output from \code{\link{batch_drc_analysis}}. Can be either
 #'   the complete wrapper object or the extracted \code{drc_results} component.
 #' @param output_dir Character string specifying the main output directory where
 #'   plots will be saved. Default is "DRC_Plots".
@@ -96,13 +96,13 @@
 #' \dontrun{
 #' # Basic usage - saves all plots organized by plate
 #' batch_save_all_drc_plots(
-#'   batch_results = my_results,
+#'   batch_drc_results = my_results,
 #'   output_dir = "All_Plots"
 #' )
 #'
 #' # Save only specific compounds, organized by compound name
 #' batch_save_all_drc_plots(
-#'   batch_results = my_results,
+#'   batch_drc_results = my_results,
 #'   compounds_to_plot = c("MDCV001", "GZD824", "MLI-2"),
 #'   organize_by = "compound",
 #'   output_dir = "Selected_Compounds"
@@ -110,7 +110,7 @@
 #'
 #' # Customize plot appearance
 #' batch_save_all_drc_plots(
-#'   batch_results = my_results,
+#'   batch_drc_results = my_results,
 #'   output_dir = "Custom_Plots",
 #'   point_color = "blue",
 #'   point_size = 3,
@@ -123,7 +123,7 @@
 #'
 #' # Save specific plates with custom title
 #' batch_save_all_drc_plots(
-#'   batch_results = my_results,
+#'   batch_drc_results = my_results,
 #'   plates_to_plot = c("plate_01", "plate_03"),
 #'   output_dir = "Selected_Plates",
 #'   plot_title = "Dose-Response Curve"
@@ -131,7 +131,7 @@
 #'
 #' # Process only compounds from a specific construct
 #' batch_save_all_drc_plots(
-#'   batch_results = my_results,
+#'   batch_drc_results = my_results,
 #'   compounds_to_plot = c("MDCV001", "MDCV002", "MDCV003"),
 #'   output_dir = "LRRK2_Compounds"
 #' )
@@ -139,8 +139,7 @@
 #'
 #' @export
 
-
-batch_save_all_drc_plots <- function(batch_results,
+batch_save_all_drc_plots <- function(batch_drc_results,
                                      output_dir = "DRC_Plots",
                                      organize_by = "plate",
                                      compounds_to_plot = NULL,
@@ -220,16 +219,16 @@ batch_save_all_drc_plots <- function(batch_results,
     return("Unknown")
   }
 
-  # Extract drc_results if batch_results is the wrapper object
-  if (is.list(batch_results)) {
-    if ("drc_results" %in% names(batch_results)) {
+  # Extract drc_results if batch_drc_results is the wrapper object
+  if (is.list(batch_drc_results)) {
+    if ("drc_results" %in% names(batch_drc_results)) {
       if (verbose) message("Detected batch_drc_analysis wrapper. Extracting drc_results...")
-      drc_results <- batch_results$drc_results
+      drc_results <- batch_drc_results$drc_results
     } else {
-      drc_results <- batch_results
+      drc_results <- batch_drc_results
     }
   } else {
-    stop("batch_results must be a list")
+    stop("batch_drc_results must be a list")
   }
 
   # Get plate names
@@ -387,7 +386,7 @@ batch_save_all_drc_plots <- function(batch_results,
         plot_width = width,
         plot_height = height,
         plot_dpi = dpi,
-        point_color = point_color,
+        point_color = point_color,  # Passando a cor dos pontos (padrão = "black")
         show_ic50_line = show_ic50_line,
         verbose = FALSE,
         plot_title = plot_title,
@@ -418,7 +417,7 @@ batch_save_all_drc_plots <- function(batch_results,
     message("Total compounds: ", total)
     message("Successful: ", successes)
     message("Failed: ", failures)
-    message("Point color: ", point_color)
+    message("Point color: ", point_color)  # Mostrar a cor usada
     message("Output directory: ", normalizePath(output_dir))
 
     if (failures > 0) {
