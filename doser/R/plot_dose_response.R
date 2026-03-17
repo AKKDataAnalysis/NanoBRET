@@ -14,17 +14,17 @@
 #' @param point_size Size multiplier for data points (default: 1).
 #' @param line_width Line width for fitted curve (default: 2).
 #' @param error_bar_width Width of error bar ends (default: 0.01).
-#' @param show_ic50_line Logical indicating whether to show vertical IC50 line (default: TRUE).
+#' @param show_ic50_line Logical indicating whether to show vertical IC50 line (default: FALSE).
 #' @param show_legend Logical indicating whether to show parameter legend (default: FALSE).
 #' @param show_grid Logical indicating whether to show background grid (default: FALSE).
 #' @param save_plot Defines whether to save the plot: \code{NULL} (do not save, default),
 #'   \code{TRUE} (automatically saves as PNG with default name), or a file path with extension
 #'   (\code{.png}, \code{.pdf}, \code{.jpeg}, \code{.tiff}, \code{.svg}, \code{.eps}) to save in a specific format.
 #' @param plot_width Plot width in inches for saved plots (default: 10).
-#' @param plot_height Plot height in inches for saved plots (default: 8).
+#' @param plot_height Plot height in inches for saved plots (default: 10).
 #' @param plot_dpi Resolution for saved raster images (default: 600).
-#' @param axis_label_size Font size for axis labels (default: 14).
-#' @param axis_text_size Font size for axis numbers (default: 14).
+#' @param axis_label_size Font size for axis labels (default: 20).
+#' @param axis_text_size Font size for axis numbers (default: 18).
 #' @param x_axis_title Custom x-axis title. If NULL, uses default expression.
 #' @param y_axis_title Custom y-axis title. If NULL, uses default based on normalization.
 #' @param enforce_bottom_threshold Logical indicating whether bottom threshold enforcement
@@ -171,10 +171,10 @@ plot_dose_response <- function(results, compound_index = 1, y_limits = c(0, 150)
                                point_color = "black", line_color = "black",
                                ic50_line_color = "gray", point_size = 1,
                                line_width = 2, error_bar_width = 0.01,
-                               show_ic50_line = TRUE, show_legend = TRUE,
+                               show_ic50_line = TRUE, show_legend = FALSE,
                                show_grid = FALSE, save_plot = NULL,
-                               plot_width = 10, plot_height = 8, plot_dpi = 600,
-                               axis_label_size = 14, axis_text_size = 14,
+                               plot_width = 10, plot_height = 10, plot_dpi = 600,
+                               axis_label_size = 20, axis_text_size = 18,
                                x_axis_title = NULL, y_axis_title = NULL,
                                enforce_bottom_threshold = NULL, bottom_threshold = 60,
                                verbose = FALSE) {
